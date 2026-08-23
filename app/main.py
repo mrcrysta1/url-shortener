@@ -1,10 +1,13 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
 from . import models, schemas, auth, utils
 from .database import get_db, engine
+import os
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -13,6 +16,31 @@ app = FastAPI(
     description="A modern URL shortener with JWT authentication, analytics, and custom short codes",
     version="1.0.0"
 )
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount static files
+static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+@app.get("/")
+async def read_root():
+    """Serve the web interface"""
+    index_path = os.path.join(static_dir, "index.html")
+    if os.path.exists(index_path):
+        with open(index_path, "r") as f:
+            content = f.read()
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=content)
+    return {"message": "Welcome to URL Shortener API. Visit /docs for API documentation."}
 
 @app.post("/token", response_model=schemas.Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
